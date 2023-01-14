@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import _ from 'lodash'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { CSSObject } from 'styled-components'
+import { InputFunctionType } from './Factory'
 import { BaseInputPropsType, QueryType } from './types'
 
 type BasicRecord = Record<string, unknown>
@@ -16,10 +17,11 @@ export default function useProps<
   P extends BaseInputPropsType<V>,
   O extends object,
   T extends object,
+  X extends React.ComponentPropsWithoutRef<any> = React.ComponentPropsWithoutRef<any>,
 >(
   propNamesMap: Record<string, boolean>,
-  componentProps: P,
-  initializationProps: O,
+  componentProps: O,
+  initializationProps: (P & X) | InputFunctionType<O, P & X>,
   theme: T,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   passedRef: React.ForwardedRef<any>,
@@ -27,7 +29,7 @@ export default function useProps<
 ): [
   CSSObject,
   React.ComponentPropsWithoutRef<any>,
-  React.RefObject<HTMLDivElement>,
+  React.RefCallback<HTMLDivElement>,
 ] {
   const [props, setProps] = useState<CSSObject>({})
   const [elementProps, setElementProps] = useState<
@@ -37,114 +39,125 @@ export default function useProps<
     useState<Array<CompiledViewPropsType>>()
   const [parentWidth, setParentWidth] = useState<number>()
   const [parentHeight, setParentHeight] = useState<number>()
-  const ref = useRef<HTMLDivElement>(null)
-  const localRef = (passedRef || ref) as React.RefObject<HTMLDivElement>
+  const [element, setElement] = useState<HTMLElement>()
+  const ref = useCallback(
+    (node: HTMLElement | null) => {
+      setElement(node ?? undefined)
+      if (typeof passedRef === 'function') {
+        passedRef(node)
+      }
+    },
+    [passedRef, setElement],
+  )
 
   useEffect(() => {
-    let watchesParent = false
-
-    const props = {}
-
-    if (typeof initializationProps === 'function') {
-      _.merge(
-        props,
-        (initializationProps as (...args: any) => O & P)(
-          componentProps,
-        ),
-      )
-    } else {
-      _.merge(props, componentProps)
-      _.merge(props, initializationProps)
-    }
-
-    const elProps: React.ComponentPropsWithoutRef<any> = {}
-    Object.keys(props).forEach(key => {
-      if (!(key in propNamesMap)) {
-        ;(elProps as BasicRecord)[key] = (props as BasicRecord)[key]
-      }
-    })
-
-    setElementProps(elProps)
-
-    const input = props as O & P
-
-    let defaultChildProps: CSSObject = {}
-    const childPropsArray: Array<CompiledViewPropsType> = [
-      { props: defaultChildProps },
-    ]
-
-    const childProps = converter(theme, input)
-    _.merge(defaultChildProps, childProps)
-
-    if (input.queries) {
-      input.queries.forEach(query => {
-        const childProps = converter(theme, query)
-        if (query.match) {
-          if (query.match.element === 'window') {
-            const mediaParts = []
-            _.merge(defaultChildProps)
-          } else {
-            watchesParent = true
-            childPropsArray.push({
-              match: query.match,
-              props: childProps,
-            })
-          }
-        }
-      })
-    }
-
-    const { selectors } = input
-
-    if (selectors) {
-      Object.keys(selectors).forEach(selector => {
-        const selectorProps = selectors[selector]
-        const childProps = converter(theme, selectorProps)
-        defaultChildProps[selector] = childProps
-      })
-    }
-
-    childPropsArray.slice(1).forEach(childProps => {
-      _.defaultsDeep(childProps, defaultChildProps)
-    })
-
     let observer: ResizeObserver
 
-    if (watchesParent && localRef.current) {
-      observer = new ResizeObserver(entries => {
-        const element = entries[0]
-        if (element) {
-          const sizeInfo = element.borderBoxSize?.[0]
-          const width = sizeInfo?.inlineSize ?? 0
-          const height = sizeInfo?.blockSize ?? 0
-          setParentWidth(width)
-          setParentHeight(height)
+    if (element) {
+      let watchesParent = false
+
+      const props = {}
+
+      if (typeof initializationProps === 'function') {
+        _.merge(
+          props,
+          (initializationProps as (p: O) => P & X)({
+            ...componentProps,
+            theme,
+          }),
+        )
+      } else {
+        _.merge(props, componentProps)
+        _.merge(props, initializationProps)
+      }
+
+      const elProps: React.ComponentPropsWithoutRef<any> = {}
+      Object.keys(props).forEach(key => {
+        if (!(key in propNamesMap)) {
+          ;(elProps as BasicRecord)[key] = (props as BasicRecord)[key]
         }
       })
 
-      observer.observe(localRef.current)
+      setElementProps(elProps)
 
-      const rect =
-        localRef.current?.parentElement?.getBoundingClientRect()
-      const width = rect?.width ?? 0
-      const height = rect?.height ?? 0
+      const input = props as P & X
 
-      if (width && height) {
-        setParentWidth(width)
-        setParentHeight(height)
-      } else {
-        setParentWidth(undefined)
-        setParentHeight(undefined)
+      let defaultChildProps: CSSObject = {}
+      const childPropsArray: Array<CompiledViewPropsType> = [
+        { props: defaultChildProps },
+      ]
+
+      const childProps = converter(theme, input)
+      _.merge(defaultChildProps, childProps)
+
+      if (input.queries) {
+        input.queries.forEach(query => {
+          const childProps = converter(theme, query)
+          if (query.match) {
+            if (query.match.element === 'window') {
+              // TODO
+              const mediaParts = []
+              _.merge(defaultChildProps)
+            } else {
+              watchesParent = true
+              childPropsArray.push({
+                match: query.match,
+                props: childProps,
+              })
+            }
+          }
+        })
       }
-    }
 
-    setPropsArray(childPropsArray)
+      const { selectors } = input
+
+      if (selectors) {
+        Object.keys(selectors).forEach(selector => {
+          const selectorProps = selectors[selector]
+          const childProps = converter(theme, selectorProps)
+          defaultChildProps[selector] = childProps
+        })
+      }
+
+      childPropsArray.slice(1).forEach(childProps => {
+        _.defaultsDeep(childProps, defaultChildProps)
+      })
+
+      if (watchesParent && element) {
+        observer = new ResizeObserver(entries => {
+          const child = entries[0]
+          if (child) {
+            const sizeInfo = child.borderBoxSize?.[0]
+            const width = sizeInfo?.inlineSize ?? 0
+            const height = sizeInfo?.blockSize ?? 0
+            setParentWidth(width)
+            setParentHeight(height)
+          }
+        })
+
+        observer.observe(element)
+
+        const rect = element?.parentElement?.getBoundingClientRect()
+        const width = rect?.width ?? 0
+        const height = rect?.height ?? 0
+
+        if (width && height) {
+          setParentWidth(width)
+          setParentHeight(height)
+        } else {
+          setParentWidth(undefined)
+          setParentHeight(undefined)
+        }
+      }
+
+      setPropsArray(childPropsArray)
+    }
 
     return () => {
       observer?.disconnect()
     }
   }, [
-    localRef,
+    element,
     converter,
     initializationProps,
     propNamesMap,
@@ -171,7 +184,7 @@ export default function useProps<
     }
   }, [propsArray, parentWidth, setProps])
 
-  return [props, elementProps, localRef]
+  return [props, elementProps, ref]
 }
 
 function selectPropsMatchingDimensions(

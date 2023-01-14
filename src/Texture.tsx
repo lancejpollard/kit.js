@@ -4,7 +4,7 @@ import {
   getNumberOrString,
 } from './styles'
 import { AbsolutePositionMixinType, PositionType, Theme } from './types'
-import { CSSObject } from 'styled-components'
+import { CSSObject, DefaultTheme } from 'styled-components'
 import Factory from './Factory'
 
 type TextureViewPropsType = AbsolutePositionMixinType & {
@@ -57,14 +57,14 @@ export const PROP_LIST: Array<string> = [
   'top',
 ]
 
-export default Factory<TextureViewPropsType, Theme>(
+export default Factory<TextureViewPropsType, DefaultTheme>(
   'div',
   PROP_LIST,
   serializeProps,
 )
 
 function serializeProps(
-  theme: Theme,
+  theme: DefaultTheme,
   props: TextureViewPropsType,
 ): CSSObject {
   return {

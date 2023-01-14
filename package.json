@@ -1,11 +1,13 @@
 {
   "name": "@lancejpollard/kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist"
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "link": "npm link styled-components next react react-dom"
   },
   "files": [
     "dist",
@@ -16,14 +18,19 @@
     "@mdx-js/react": "^2.2.1",
     "@next/font": "13.1.2",
     "@next/mdx": "^13.1.2",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.21"
+  },
+  "peerDependencies": {
+    "next": "13.x",
+    "react": "18.x",
+    "react-dom": "18.x",
+    "styled-components": "5.x"
+  },
+  "devDependencies": {
     "next": "13.1.2",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "react-markdown": "^8.0.4",
-    "styled-components": "^5.3.6"
-  },
-  "devDependencies": {
+    "styled-components": "^5.3.6",
     "eslint": "8.31.0",
     "typescript": "4.9.4",
     "eslint-config-next": "13.1.2",

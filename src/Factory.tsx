@@ -1,26 +1,34 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import _ from 'lodash'
 import React from 'react'
-import styled, { CSSObject, useTheme } from 'styled-components'
+import styled, {
+  CSSObject,
+  DefaultTheme,
+  useTheme,
+} from 'styled-components'
 import { BaseInputPropsType } from './types'
 import useProps from './useProps'
+
+export type ExecutionPropsType = {
+  theme: DefaultTheme
+}
 
 export type FactoryPropsType = {
   styledProps: CSSObject
 }
 
-export type InputPropsType<P> = P extends (...args: any) => any
-  ? ReturnType<P>
-  : P
+export type InputFunctionType<O, P> = (
+  props: ExecutionPropsType & O,
+) => P
 
 export default function FactoryFactory<
   V extends object,
   // The Theme from the current context
-  T extends object,
+  T extends DefaultTheme,
   // The properties from say the `Box`.
   P extends BaseInputPropsType<V> = BaseInputPropsType<V>,
-  // The other props added by the template
-  O extends React.ComponentPropsWithoutRef<any> = React.ComponentPropsWithoutRef<any>,
+  // The properties from the native HTML elements
+  X extends React.ComponentPropsWithoutRef<any> = React.ComponentPropsWithoutRef<any>,
 >(
   as: string,
   propNames: Array<string>,
@@ -34,7 +42,10 @@ export default function FactoryFactory<
     {},
   )
 
-  return function Factory(inputProps: InputPropsType<O & P>) {
+  return function Factory<
+    // The other props added by the template
+    O extends React.ComponentPropsWithoutRef<any> = React.ComponentPropsWithoutRef<any>,
+  >(inputProps: (P & X) | InputFunctionType<O, P & X>) {
     const Styled = styled.div<FactoryPropsType>(
       props => props.styledProps,
     )
@@ -42,7 +53,7 @@ export default function FactoryFactory<
     function Component(props: O, passedRef: React.ForwardedRef<any>) {
       const theme = useTheme() as T
 
-      const [styledProps, elementProps, ref] = useProps<V, P, O, T>(
+      const [styledProps, elementProps, ref] = useProps<V, P, O, T, X>(
         propNamesMap,
         props,
         inputProps,
