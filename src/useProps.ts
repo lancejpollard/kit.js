@@ -59,6 +59,7 @@ export default function useProps<
       const props = {}
 
       if (typeof initializationProps === 'function') {
+        _.merge(props, componentProps)
         _.merge(
           props,
           (initializationProps as (p: O) => P & X)({
