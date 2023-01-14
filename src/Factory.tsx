@@ -32,7 +32,7 @@ export default function FactoryFactory<
 >(
   as: string,
   propNames: Array<string>,
-  serializer: (theme: T, props: V) => CSSObject,
+  serializer: (theme: T, props: V, isSelector?: boolean) => CSSObject,
 ) {
   const propNamesMap = propNames.reduce<Record<string, boolean>>(
     (m, x) => {

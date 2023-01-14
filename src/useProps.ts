@@ -25,7 +25,7 @@ export default function useProps<
   theme: T,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   passedRef: React.ForwardedRef<any>,
-  converter: (theme: T, input: V) => CSSObject,
+  converter: (theme: T, input: V, isSelector?: boolean) => CSSObject,
 ): [
   CSSObject,
   React.ComponentPropsWithoutRef<any>,
@@ -88,12 +88,12 @@ export default function useProps<
         { props: defaultChildProps },
       ]
 
-      const childProps = converter(theme, input)
+      const childProps = converter(theme, input, false)
       _.merge(defaultChildProps, childProps)
 
       if (input.queries) {
         input.queries.forEach(query => {
-          const childProps = converter(theme, query)
+          const childProps = converter(theme, query, false)
           if (query.match) {
             if (query.match.element === 'window') {
               // TODO
@@ -115,7 +115,7 @@ export default function useProps<
       if (selectors) {
         Object.keys(selectors).forEach(selector => {
           const selectorProps = selectors[selector]
-          const childProps = converter(theme, selectorProps)
+          const childProps = converter(theme, selectorProps, true)
           defaultChildProps[selector] = childProps
         })
       }

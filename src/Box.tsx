@@ -118,6 +118,7 @@ export default Factory<BoxViewPropsType, Theme>(
 function serializeViewProps(
   theme: Theme,
   stateProps: BoxViewPropsType,
+  isSelector?: boolean,
 ): CSSObject {
   return {
     ...getDimensionMixin(stateProps),
@@ -133,13 +134,13 @@ function serializeViewProps(
     columnGap: stateProps.hGap
       ? getNumberOrString(stateProps.hGap)
       : undefined,
-    display: 'flex',
+    display: isSelector ? undefined : 'flex',
     flex: stateProps.flex ? stateProps.flex : undefined,
     flexDirection: stateProps.direction
       ? DIRECTION[stateProps.direction]
       : undefined,
     flexGrow: stateProps.grow ? 1 : undefined,
-    flexShrink: stateProps.shrink ? 1 : 0,
+    flexShrink: stateProps.shrink ? 1 : isSelector ? undefined : 0,
     flexWrap: stateProps.wrap ? 'wrap' : undefined,
     gap: stateProps.gap ? getNumberOrString(stateProps.gap) : undefined,
     justifyContent: stateProps.justify
