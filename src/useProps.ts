@@ -27,37 +27,29 @@ export default function useProps<
   passedRef: React.ForwardedRef<any>,
   converter: (theme: T, input: V, isSelector?: boolean) => CSSObject,
 ): [
-  CSSObject,
-  React.ComponentPropsWithoutRef<any>,
+  CSSObject | undefined,
+  React.ComponentPropsWithoutRef<any> | undefined,
   React.RefCallback<HTMLDivElement>,
 ] {
-  const { childPropsArray, elementProps, watchesParent } = computeProps<
-    V,
-    P,
-    O,
-    T,
-    X
-  >({
-    componentProps,
-    converter,
-    initializationProps,
-    propNamesMap,
-    theme,
-  })
+  const [isWatchingParent, setIsWatchingParent] = useState(false)
 
-  const [cachedStyledProps, setCachedStyledProps] = useState<CSSObject>(
-    childPropsArray?.[0].props ?? {},
-  )
+  const [cachedStyledPropsArray, setCachedStyledPropsArray] = useState<
+    Array<CompiledViewPropsType>
+  >([])
+
+  const [cachedStyledProps, setCachedStyledProps] =
+    useState<CSSObject>()
 
   const [cachedElementProps, setCachedElementProps] =
-    useState<React.ComponentPropsWithoutRef<any>>(elementProps)
+    useState<React.ComponentPropsWithoutRef<any>>()
 
   const [parentWidth, setParentWidth] = useState<number>()
   const [parentHeight, setParentHeight] = useState<number>()
-  const [element, setElement] = useState<HTMLElement>()
+  const [element, setElement] = useState<HTMLElement | null>(null)
+
   const ref = useCallback(
     (node: HTMLElement | null) => {
-      setElement(node ?? undefined)
+      setElement(node)
       if (typeof passedRef === 'function') {
         passedRef(node)
       }
@@ -66,9 +58,50 @@ export default function useProps<
   )
 
   useEffect(() => {
+    const { childPropsArray, elementProps, watchesParent } =
+      computeProps<V, P, O, T, X>({
+        componentProps,
+        converter,
+        initializationProps,
+        propNamesMap,
+        theme,
+      })
+
+    setCachedStyledPropsArray(childPropsArray)
+    setIsWatchingParent(watchesParent)
+    setCachedElementProps(elementProps)
+  }, [
+    propNamesMap,
+    componentProps,
+    initializationProps,
+    theme,
+    converter,
+    parentWidth,
+  ])
+
+  useEffect(() => {
+    const defaultProps = cachedStyledPropsArray?.[0]
+
+    if (parentWidth && cachedStyledPropsArray) {
+      const matchingProps = selectPropsMatchingDimensions(
+        cachedStyledPropsArray,
+        parentWidth,
+      )
+
+      if (defaultProps) {
+        setCachedStyledProps(matchingProps ?? defaultProps.props)
+      }
+    } else {
+      if (defaultProps) {
+        setCachedStyledProps(defaultProps.props)
+      }
+    }
+  }, [parentWidth, cachedStyledPropsArray])
+
+  useEffect(() => {
     let observer: ResizeObserver
 
-    if (element && watchesParent) {
+    if (element && isWatchingParent) {
       observer = new ResizeObserver(entries => {
         const child = entries[0]
         if (child) {
@@ -98,50 +131,7 @@ export default function useProps<
     return () => {
       observer?.disconnect()
     }
-  }, [element, watchesParent])
-
-  useEffect(() => {
-    const { childPropsArray, elementProps } = computeProps<
-      V,
-      P,
-      O,
-      T,
-      X
-    >({
-      componentProps,
-      converter,
-      initializationProps,
-      propNamesMap,
-      theme,
-    })
-
-    const defaultProps = childPropsArray?.[0]
-
-    if (parentWidth && childPropsArray) {
-      const matchingProps = selectPropsMatchingDimensions(
-        childPropsArray,
-        parentWidth,
-      )
-
-      if (defaultProps) {
-        setCachedStyledProps(matchingProps ?? defaultProps.props)
-      }
-    } else {
-      if (defaultProps) {
-        setCachedStyledProps(defaultProps.props)
-      }
-    }
-
-    setCachedElementProps(elementProps)
-  }, [
-    propNamesMap,
-    componentProps,
-    initializationProps,
-    theme,
-    converter,
-    parentWidth,
-    setCachedStyledProps,
-  ])
+  }, [element, isWatchingParent])
 
   return [cachedStyledProps, cachedElementProps, ref]
 }

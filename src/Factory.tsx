@@ -62,6 +62,10 @@ export default function FactoryFactory<
         serializer,
       )
 
+      if (!elementProps) {
+        return null
+      }
+
       const { children, ...elementPropsWithoutChildren } = elementProps
       const childrenAsReactNode = (
         Array.isArray(children) ? children : [children]
