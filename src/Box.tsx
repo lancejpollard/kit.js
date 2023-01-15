@@ -47,6 +47,7 @@ export type BoxViewPropsType = FontMixinType &
     invisible?: boolean
     justify?: JustifyType
     position?: PositionType
+    shadow?: string
     shrink?: boolean
     unselectable?: boolean
     vGap?: string | number
@@ -107,6 +108,7 @@ export const PROP_LIST: Array<string> = [
   'fontHeight',
   'fontSize',
   'fontWeight',
+  'boxShadow',
 ]
 
 export default Factory<BoxViewPropsType, Theme>(
@@ -131,6 +133,7 @@ function serializeViewProps(
     bottom: stateProps.bottom
       ? getNumberOrString(stateProps.bottom)
       : undefined,
+    boxShadow: stateProps.shadow ? stateProps.shadow : undefined,
     columnGap: stateProps.hGap
       ? getNumberOrString(stateProps.hGap)
       : undefined,

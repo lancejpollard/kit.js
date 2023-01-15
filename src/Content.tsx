@@ -29,7 +29,7 @@ export default function Content({ children }: PropsType) {
   return (
     <Wrapper>
       <Container>
-        <Scroller>{children}</Scroller>
+        <Scroller id="scroller">{children}</Scroller>
       </Container>
     </Wrapper>
   )

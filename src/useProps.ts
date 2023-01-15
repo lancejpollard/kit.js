@@ -31,12 +31,27 @@ export default function useProps<
   React.ComponentPropsWithoutRef<any>,
   React.RefCallback<HTMLDivElement>,
 ] {
-  const [props, setProps] = useState<CSSObject>({})
-  const [elementProps, setElementProps] = useState<
-    React.ComponentPropsWithoutRef<any>
-  >({})
-  const [propsArray, setPropsArray] =
-    useState<Array<CompiledViewPropsType>>()
+  const { childPropsArray, elementProps, watchesParent } = computeProps<
+    V,
+    P,
+    O,
+    T,
+    X
+  >({
+    componentProps,
+    converter,
+    initializationProps,
+    propNamesMap,
+    theme,
+  })
+
+  const [cachedStyledProps, setCachedStyledProps] = useState<CSSObject>(
+    childPropsArray?.[0].props ?? {},
+  )
+
+  const [cachedElementProps, setCachedElementProps] =
+    useState<React.ComponentPropsWithoutRef<any>>(elementProps)
+
   const [parentWidth, setParentWidth] = useState<number>()
   const [parentHeight, setParentHeight] = useState<number>()
   const [element, setElement] = useState<HTMLElement>()
@@ -53,139 +68,82 @@ export default function useProps<
   useEffect(() => {
     let observer: ResizeObserver
 
-    if (element) {
-      let watchesParent = false
-
-      const props = {}
-
-      if (typeof initializationProps === 'function') {
-        _.merge(props, componentProps)
-        _.merge(
-          props,
-          (initializationProps as (p: O) => P & X)({
-            ...componentProps,
-            theme,
-          }),
-        )
-      } else {
-        _.merge(props, componentProps)
-        _.merge(props, initializationProps)
-      }
-
-      const elProps: React.ComponentPropsWithoutRef<any> = {}
-      Object.keys(props).forEach(key => {
-        if (!(key in propNamesMap)) {
-          ;(elProps as BasicRecord)[key] = (props as BasicRecord)[key]
-        }
-      })
-
-      setElementProps(elProps)
-
-      const input = props as P & X
-
-      let defaultChildProps: CSSObject = {}
-      const childPropsArray: Array<CompiledViewPropsType> = [
-        { props: defaultChildProps },
-      ]
-
-      const childProps = converter(theme, input, false)
-      _.merge(defaultChildProps, childProps)
-
-      if (input.queries) {
-        input.queries.forEach(query => {
-          const childProps = converter(theme, query, false)
-          if (query.match) {
-            if (query.match.element === 'window') {
-              // TODO
-              const mediaParts = []
-              _.merge(defaultChildProps)
-            } else {
-              watchesParent = true
-              childPropsArray.push({
-                match: query.match,
-                props: childProps,
-              })
-            }
-          }
-        })
-      }
-
-      const { selectors } = input
-
-      if (selectors) {
-        Object.keys(selectors).forEach(selector => {
-          const selectorProps = selectors[selector]
-          const childProps = converter(theme, selectorProps, true)
-          defaultChildProps[selector] = childProps
-        })
-      }
-
-      childPropsArray.slice(1).forEach(childProps => {
-        _.defaultsDeep(childProps, defaultChildProps)
-      })
-
-      if (watchesParent && element) {
-        observer = new ResizeObserver(entries => {
-          const child = entries[0]
-          if (child) {
-            const sizeInfo = child.borderBoxSize?.[0]
-            const width = sizeInfo?.inlineSize ?? 0
-            const height = sizeInfo?.blockSize ?? 0
-            setParentWidth(width)
-            setParentHeight(height)
-          }
-        })
-
-        observer.observe(element)
-
-        const rect = element?.parentElement?.getBoundingClientRect()
-        const width = rect?.width ?? 0
-        const height = rect?.height ?? 0
-
-        if (width && height) {
+    if (element && watchesParent) {
+      observer = new ResizeObserver(entries => {
+        const child = entries[0]
+        if (child) {
+          const sizeInfo = child.borderBoxSize?.[0]
+          const width = sizeInfo?.inlineSize ?? 0
+          const height = sizeInfo?.blockSize ?? 0
           setParentWidth(width)
           setParentHeight(height)
-        } else {
-          setParentWidth(undefined)
-          setParentHeight(undefined)
         }
-      }
+      })
 
-      setPropsArray(childPropsArray)
+      observer.observe(element)
+
+      const rect = element?.parentElement?.getBoundingClientRect()
+      const width = rect?.width ?? 0
+      const height = rect?.height ?? 0
+
+      if (width && height) {
+        setParentWidth(width)
+        setParentHeight(height)
+      } else {
+        setParentWidth(undefined)
+        setParentHeight(undefined)
+      }
     }
 
     return () => {
       observer?.disconnect()
     }
-  }, [
-    element,
-    converter,
-    initializationProps,
-    propNamesMap,
-    componentProps,
-    theme,
-  ])
+  }, [element, watchesParent])
 
   useEffect(() => {
-    const defaultProps = propsArray?.[0]
+    const { childPropsArray, elementProps } = computeProps<
+      V,
+      P,
+      O,
+      T,
+      X
+    >({
+      componentProps,
+      converter,
+      initializationProps,
+      propNamesMap,
+      theme,
+    })
 
-    if (parentWidth && propsArray) {
+    const defaultProps = childPropsArray?.[0]
+
+    if (parentWidth && childPropsArray) {
       const matchingProps = selectPropsMatchingDimensions(
-        propsArray,
+        childPropsArray,
         parentWidth,
       )
 
       if (defaultProps) {
-        setProps(matchingProps ?? defaultProps.props)
+        setCachedStyledProps(matchingProps ?? defaultProps.props)
       }
     } else {
       if (defaultProps) {
-        setProps(defaultProps.props)
+        setCachedStyledProps(defaultProps.props)
       }
     }
-  }, [propsArray, parentWidth, setProps])
 
-  return [props, elementProps, ref]
+    setCachedElementProps(elementProps)
+  }, [
+    propNamesMap,
+    componentProps,
+    initializationProps,
+    theme,
+    converter,
+    parentWidth,
+    setCachedStyledProps,
+  ])
+
+  return [cachedStyledProps, cachedElementProps, ref]
 }
 
 function selectPropsMatchingDimensions(
@@ -210,4 +168,103 @@ function selectPropsMatchingDimensions(
       }
     }
   }
+}
+
+type ComputePropsInputType<
+  V extends object,
+  P extends BaseInputPropsType<V>,
+  O extends object,
+  T extends object,
+  X extends React.ComponentPropsWithoutRef<any> = React.ComponentPropsWithoutRef<any>,
+> = {
+  componentProps: O
+  converter: (theme: T, input: V, isSelector?: boolean) => CSSObject
+  initializationProps: (P & X) | InputFunctionType<O, P & X>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  propNamesMap: Record<string, boolean>
+  theme: T
+}
+
+function computeProps<
+  V extends object,
+  P extends BaseInputPropsType<V>,
+  O extends object,
+  T extends object,
+  X extends React.ComponentPropsWithoutRef<any> = React.ComponentPropsWithoutRef<any>,
+>({
+  initializationProps,
+  theme,
+  componentProps,
+  propNamesMap,
+  converter,
+}: ComputePropsInputType<V, P, O, T, X>) {
+  let watchesParent = false
+
+  const props = {}
+
+  if (typeof initializationProps === 'function') {
+    _.merge(props, componentProps)
+    _.merge(
+      props,
+      (initializationProps as (p: O) => P & X)({
+        ...componentProps,
+        theme,
+      }),
+    )
+  } else {
+    _.merge(props, componentProps)
+    _.merge(props, initializationProps)
+  }
+
+  const elementProps: React.ComponentPropsWithoutRef<any> = {}
+  Object.keys(props).forEach(key => {
+    if (!(key in propNamesMap)) {
+      ;(elementProps as BasicRecord)[key] = (props as BasicRecord)[key]
+    }
+  })
+
+  const input = props as P & X
+
+  let defaultChildProps: CSSObject = {}
+  const childPropsArray: Array<CompiledViewPropsType> = [
+    { props: defaultChildProps },
+  ]
+
+  const childProps = converter(theme, input, false)
+  _.merge(defaultChildProps, childProps)
+
+  if (input.queries) {
+    input.queries.forEach(query => {
+      const childProps = converter(theme, query, false)
+      if (query.match) {
+        if (query.match.element === 'window') {
+          // TODO
+          const mediaParts = []
+          _.merge(defaultChildProps)
+        } else {
+          watchesParent = true
+          childPropsArray.push({
+            match: query.match,
+            props: childProps,
+          })
+        }
+      }
+    })
+  }
+
+  const { selectors } = input
+
+  if (selectors) {
+    Object.keys(selectors).forEach(selector => {
+      const selectorProps = selectors[selector]
+      const childProps = converter(theme, selectorProps, true)
+      defaultChildProps[selector] = childProps
+    })
+  }
+
+  childPropsArray.slice(1).forEach(childProps => {
+    _.defaultsDeep(childProps, defaultChildProps)
+  })
+
+  return { childPropsArray, elementProps, watchesParent }
 }
